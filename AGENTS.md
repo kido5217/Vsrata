@@ -21,3 +21,13 @@ offers the same steps as tools.
   `tools/test_setup_amd.py`, `tools/test_setup_choices.py`).
 - Keep the docs' style: plain words, measured numbers with what they were measured on, no claims without a
   measurement.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in the repo's GitHub Issues, operated via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` at the repo root and `docs/adr/` for ADRs. See `docs/agents/domain.md`.
