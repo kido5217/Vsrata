@@ -83,7 +83,7 @@ pkgs.stdenv.mkDerivation {
     makeWrapper ${python}/bin/python $out/bin/vsrata \
       --add-flags $out/share/vsrata/cli/vsrata.py \
       --prefix PYTHONPATH : "$out/share/vsrata" \
-      --set VSRATA_SHARE $out/share/vsrata \
+      --set VSRATA_ROOT $out/share/vsrata \
       --set-default PYTHONUNBUFFERED 1
 
     runHook postInstall
