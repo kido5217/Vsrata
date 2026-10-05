@@ -1,5 +1,5 @@
 {
-  description = "Strata dev environment (nixos-26.05 branch, CUDA 13.2, pinned llama.cpp)";
+  description = "Strata/Vsrata: the engine package, a home-manager module, and the dev environment (nixos-26.05, CUDA 13.2, pinned llama.cpp)";
 
   inputs = {
     # nixos-26.05 branch (user decision, ticket #11): tracks backports; flake.lock records the rev.
@@ -19,7 +19,8 @@
 
   outputs = { self, nixpkgs, llamaCpp }:
     let
-      pkgs   = import nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; };
+      system = "x86_64-linux";
+      pkgs   = import nixpkgs { inherit system; config.allowUnfree = true; };
       cuda   = pkgs.cudaPackages_13.cudatoolkit;      # cuda-merged-13.2: nvcc 13.2.51 + headers + libs
       python = pkgs.python312.withPackages (ps: with ps;
         [ numpy jinja2 regex pyyaml tqdm requests pillow psutil ]);
@@ -30,11 +31,31 @@
           cuda
           python
       ];
+
+      # The package (ticket #27). `src = self` is the flake's own tree, so a checkout builds what
+      # it contains — the same source the dev shell builds by hand.
+      vsrata = pkgs.callPackage ./pkgs/vsrata.nix {
+        inherit llamaCpp;
+        src = self;
+      };
     in
     {
-      packages.x86_64-linux.default = pkgs.buildEnv { name = "strata-dev"; paths = devPackages; };
+      packages.${system} = {
+        default = pkgs.buildEnv { name = "strata-dev"; paths = devPackages; };
+        vsrata  = vsrata;
+      };
 
-      devShells.x86_64-linux.default = pkgs.mkShell {
+      # So a consumer's `pkgs.vsrata` resolves: the module's default package is `pkgs.vsrata`
+      # (docs/design/vsrata-module.md §0.1), which only exists if this overlay is imported.
+      overlays.default = final: prev: { vsrata = vsrata; };
+
+      # home-manager defines neither output name itself; upstream's flake-parts option is
+      # `flake.homeModules`, and `homeManagerModules` is the name consumers commonly look for,
+      # so expose both (research #24 §3.2).
+      homeModules.vsrata        = import ./modules/vsrata.nix;
+      homeManagerModules.vsrata = self.homeModules.vsrata;
+
+      devShells.${system}.default = pkgs.mkShell {
         packages = devPackages;
         # CMake's CUDA compiler-ID probe needs the merged toolkit's include dir (#10 §3)
         env.NVCC_PREPEND_FLAGS = "-I${cuda}/include";
