@@ -72,10 +72,19 @@ pkgs.stdenv.mkDerivation {
     install -m755 build-vision/bin/strata-vision $out/bin/strata-vision
 
     # server/, tools/ and data/ sit together because server.py and the tools resolve paths
-    # relative to their own location — ROOT becomes $out/share/vsrata.
-    for d in serve tools data cli; do
+    # relative to their own location — ROOT becomes $out/share/vsrata. `ref/` is the plan reader
+    # strata_pack imports, and setup.py is what the CLI reads the model tables from.
+    for d in serve tools data cli ref; do
       cp -r "$d" $out/share/vsrata/
     done
+    install -m644 setup.py $out/share/vsrata/setup.py
+
+    # tools/_paths.py looks for llama.cpp's gguf-py first at <root>/third_party/llama.cpp/gguf-py,
+    # and mtp_pack/mtp_rt exit without it — so the package ships it rather than needing
+    # STRATA_GGUF_PY set in every unit.
+    mkdir -p $out/share/vsrata/third_party/llama.cpp
+    cp -r ${llamaCpp}/gguf-py $out/share/vsrata/third_party/llama.cpp/gguf-py
+
     find $out/share/vsrata -name __pycache__ -type d -prune -exec rm -rf {} +
 
     # The CLI. `python` (with the server's packages) is baked in, and PYTHONPATH lets it import
