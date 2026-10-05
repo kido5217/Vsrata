@@ -19,8 +19,11 @@ branch `research/fixtures-manifest`).
   solo-identical; `early_close_test` exit 0; `conversation_cache_http_smoke` PASS.
 - **A *native* pack is required on this CPU.** `strata_pack.py build` alone writes no
   `native_experts.txt`, so the engine takes the canonical layout and hard-requires AVX-512 — a Zen 3
-  host exits. The working chain is `strata_pack build` → `pack_index` → `iq_pack` (§3), and the
-  native pack then needs `--spec >= 2` and `--prefill` (§5).
+  host exits. It was built here as `strata_pack build` → `pack_index` → `iq_pack --base` (§3), which
+  is a **manual** reuse of one canonical pack, not what `setup.py` does: on a non-AVX-512 CPU
+  `setup.py` runs a **self-contained `iq_pack`** instead (`setup.py:4175-4193`; see
+  `docs/research/provisioning-contract.md` §2). The native pack then needs `--spec >= 2` and
+  `--prefill` (§5).
 - **The GPU must be free.** The engine needs a real VRAM budget; the host's own `frinfer` server
   (30.8 GB) starves it (§5.7).
 
@@ -63,6 +66,12 @@ strata-q2_0.json                       # the dev server config    (.gitignore:37
 dense weights is stored once.
 
 ## §3 The build chain (local generation, reproducible)
+
+> Note (added after `docs/research/provisioning-contract.md` §2): the sequence below is the chain
+> used to build **this fixture**. It is not the path `setup.py` takes on this host — that is a
+> self-contained `iq_pack` (`setup.py:4175-4193`), which also embeds the tokenizer and writes its
+> own `dense.bin`. The `strata_pack build` → `pack_index` → `iq_pack --base` form below was a
+> deliberate choice to build one canonical pack and reuse it.
 
 ```bash
 # MTP head: verify the range-fetched tensors, pack them, build the runtime
