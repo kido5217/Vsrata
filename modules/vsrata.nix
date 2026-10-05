@@ -43,7 +43,10 @@ let
       pleShard  = entry.pleShard or (if entry.family == "swift" then 1 else 2);
       plePath   = "${modelsDir}/${shardName file p.quant pleShard}";
       mmprojPath = "${modelsDir}/${entry.mmproj.file}";
-      expertProfile = "${cfg.package}/share/vsrata/data/${entry.profile or "expert-profile.bin"}";
+      # The registry writes `profile = null` for every family but coder, and `x or default` does not
+      # fire on a null value — hence the explicit test.
+      profileFile = if entry.profile != null then entry.profile else "expert-profile.bin";
+      expertProfile = "${cfg.package}/share/vsrata/data/${profileFile}";
       port = if p.port != null then p.port else cfg.basePort + indices.${name};
       # The extension factor past the trained window, mirroring setup.py's derived_factor.
       ropeScale = (p.contextWindow + 0.0) / trainedContext;
@@ -222,7 +225,7 @@ in
         message = "programs.vsrata: set at most one of hfToken and hfTokenFile.";
       }
       {
-        assertion = !(cfg.host != "127.0.0.1" && cfg.host != "::1" && cfg.host != "localhost")
+        assertion = (cfg.host != "127.0.0.1" && cfg.host != "::1" && cfg.host != "localhost")
           -> lib.all (p: p.p.apiKeyFile != null) profiles;
         message = "programs.vsrata.host is not loopback: every profile needs an apiKeyFile.";
       }
