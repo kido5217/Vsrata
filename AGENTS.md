@@ -31,3 +31,7 @@ Issues live in the repo's GitHub Issues, operated via the `gh` CLI. See `docs/ag
 ### Domain docs
 
 Single-context: `GLOSSARY.md` at the repo root and `docs/adr/` for ADRs. See `docs/agents/domain.md`.
+
+## Git
+
+- The LLM is permitted to merge: `gh pr merge <n> --squash`.
