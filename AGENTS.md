@@ -34,4 +34,8 @@ Single-context: `GLOSSARY.md` at the repo root and `docs/adr/` for ADRs. See `do
 
 ## Git
 
-- The LLM is permitted to merge: `gh pr merge <n> --squash`.
+Correct git workflow: branch → commit → push → PR → merge (squash) → pull + rebase.
+
+The LLM is permitted to do the full cycle: create the branch, commit, push, open the PR,
+squash-merge it (`gh pr merge <n> --squash`), delete the branch, then `git pull --rebase`
+on main.
