@@ -48,8 +48,12 @@ let
       profileFile = if entry.profile != null then entry.profile else "expert-profile.bin";
       expertProfile = "${cfg.package}/share/vsrata/data/${profileFile}";
       port = if p.port != null then p.port else cfg.basePort + indices.${name};
-      # The extension factor past the trained window, mirroring setup.py's derived_factor.
-      ropeScale = (p.contextWindow + 0.0) / trainedContext;
+      # The extension factor past the trained window, mirroring setup.py's derived_factor. setup.py
+      # prints it with %g, so a whole factor must not read "2.000000".
+      ropeFactor = (p.contextWindow + 0.0) / trainedContext;
+      ropeScale = if ropeFactor == builtins.floor ropeFactor
+                  then toString (builtins.floor ropeFactor)
+                  else toString ropeFactor;
 
       args =
         [ "--pack" packDir "--native" firstShard ]
@@ -74,7 +78,8 @@ let
         host       = cfg.host;
         inherit port;
         provision  = {
-          inherit (p) model quant contextWindow;
+          inherit (p) model quant;
+          context = p.contextWindow;
           vision = p.vision;
           visionAccel = p.visionAccel;
           dataRoot   = cfg.modelDir;
@@ -112,6 +117,9 @@ let
     in
     {
       inherit name p configJson port tokenPath provisionUnit serveUnit;
+      # The config the units pass to the CLI: in the state dir, because the CLI writes each stage's
+      # marker *beside* the config it is given — a store path is read-only and unprovisionable.
+      cfgPath = "${stateDir}/${name}.json";
       doneFile = "${stateDir}/${name}.done";
     };
 
@@ -237,6 +245,17 @@ in
       message = "programs.vsrata.profiles.${pr.name}: a profile name must be usable in a unit name.";
     }) profiles;
 
+    # The generated configs. The store copy is the source; this installs it where the CLI can
+    # write its markers, and creates the directory the units use as their cwd.
+    home.activation.vsrataConfigs = lib.mkIf (profiles != [ ]) (
+      lib.hm.dag.entryAfter [ "writeBoundary" ] (
+        "run mkdir -p ${lib.escapeShellArg stateDir}\n"
+        + lib.concatMapStrings (pr: ''
+          run install -m644 ${pr.configJson} ${lib.escapeShellArg pr.cfgPath}
+        '') profiles
+      )
+    );
+
     # A literal token has to exist as a file before the unit reads it. 0600, in the state dir.
     home.activation.vsrataHfToken = lib.mkIf (cfg.hfToken != null) (
       lib.hm.dag.entryAfter [ "writeBoundary" ] ''
@@ -257,10 +276,13 @@ in
         Service = {
           Type = "oneshot";
           RemainAfterExit = true;
-          ExecStart = "${cfg.package}/bin/vsrata provision --config ${pr.configJson}";
+          ExecStart = "${cfg.package}/bin/vsrata provision --config ${pr.cfgPath}";
         } // lib.optionalAttrs (pr.tokenPath != null) {
           LoadCredential = "hf-token:${toString pr.tokenPath}";
           Environment = [ "VSRATA_HF_TOKEN_FILE=%d/hf-token" ];
+        } // {
+          # The packer and the MTP tools write large arenas; the spec asks for it on both units.
+          LimitMEMLOCK = "infinity";
         };
       };
     }) profiles) // lib.listToAttrs (map (pr: {
@@ -275,7 +297,7 @@ in
         };
         Service = {
           Type = "simple";
-          ExecStart = "${cfg.package}/bin/vsrata serve --config ${pr.configJson} --port ${toString pr.port}";
+          ExecStart = "${cfg.package}/bin/vsrata serve --config ${pr.cfgPath} --port ${toString pr.port}";
           Restart = "on-failure";
           RestartSec = 5;
           # The engine pins its expert arena and the PLE table; without this it degrades (research #25).
