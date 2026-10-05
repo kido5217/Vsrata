@@ -229,14 +229,29 @@ def _shards_ok(setup, fam: dict, names: list[str], profile_dir: Path) -> bool:
     return all(_shard_ok(setup, fam, n, profile_dir / n) for n in names)
 
 
+def _verify_pinned(fam: dict, names: list[str], profile_dir: Path) -> None:
+    """Hash the shards that have a pinned (bytes, sha256), once, when adopting pre-existing files.
+
+    `whole_shard` only proves the tensor directory fits; a mirror that ignored Range (issue #327)
+    can still have written junk in the middle. Files this CLI downloaded are hashed by `download`;
+    this covers the file that was already on disk."""
+    for name in names:
+        pinned = fam.get("sha256", {}).get(name)
+        if pinned:
+            print(f"shards: checking {name} (SHA-256)")
+            _verify_sha256(profile_dir / name, pinned[1], name)
+
+
 def stage_shards(mark: Markers, setup, fam: dict, names: list[str], urls: list[str],
                  profile_dir: Path, token: str | None) -> None:
     ok = _shards_ok(setup, fam, names, profile_dir)
     if _skip(mark, "shards", ok):
         print("shards: already complete")
         return
-    if _adopt(mark, "shards", ok):
+    if ok:
+        _verify_pinned(fam, names, profile_dir)    # pre-existing files: hash the pinned ones once
         print("shards: present, marked complete")
+        mark.write("shards")
         return
     for name, url in zip(names, urls):
         dst = profile_dir / name

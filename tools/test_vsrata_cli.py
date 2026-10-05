@@ -9,6 +9,7 @@ writes its markers and shells out to nothing.
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -85,6 +86,17 @@ class StageChecks(unittest.TestCase):
 
     def test_mtp_check_accepts_the_fixture(self):
         self.assertTrue(self.cli._mtp_ok(ROOT / "mtp" / "rt"))
+
+    def test_pinned_shard_sha_is_checked_on_adoption(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "shard.gguf"
+            data = b"some bytes"
+            p.write_bytes(data)
+            good = {"sha256": {"shard.gguf": (len(data), hashlib.sha256(data).hexdigest())}}
+            self.cli._verify_pinned(good, ["shard.gguf"], Path(d))     # no raise
+            bad = {"sha256": {"shard.gguf": (len(data), "0" * 64)}}
+            with self.assertRaises(SystemExit):
+                self.cli._verify_pinned(bad, ["shard.gguf"], Path(d))  # deleted + refused
 
     def test_marker_paths_sit_beside_the_config(self):
         m = self.cli.Markers(ROOT / "cli" / "vsrata.py")
