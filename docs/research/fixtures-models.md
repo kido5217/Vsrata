@@ -148,3 +148,31 @@ run; nothing needs re-downloading unless a pin moves.
   ≈ 0.7; the dequant side is exact). `Q2_0` — the type this tree downloads — is `ok`. This is an
   engine/kernel finding, independent of the fixtures, and worth its own issue.
 - The IQ* / swift / coder / unsloth variants were not downloaded (§1), so their paths are untested.
+
+## §8 Extended coverage — the remaining model-consuming tests (ticket #20)
+
+Run after the representative pass, same fixtures, same free GPU:
+
+| Test | Result |
+|---|---|
+| `batch_interleave_test` | **exit 0** — every slot and continuation solo-identical (3 slots over a 4888-token long prompt, a give-way/`YIELDED` exchange, a next turn, and a checkpoint continuation) |
+| `parking_test` | **exit 0** — follow-up **IDENTICAL** live vs restored from the parking cache (restore: 266-token checkpoint in 31 ms; the second park retained ~106 MB) |
+| `needle_bench` | **9 of 9 found** — 2k/4k/6k tokens × 10/50/90 % depth, through `serve/server.py` |
+| `calibrate` | **exit 0** — recommends `--pcie-frac 0.20` and `--spec-min-p 0.70` (as a pair +6.4 % over the default in the interleaved confirmation; `--pcie-frac` alone +9 %, `--spec-min-p` alone +2.7 %, under the tool's own 3 % bar); 7 CPU workers best (221 tok/s); 98 s of measurement |
+
+Two prerequisites these added (continuing §5):
+
+9. **A batch graph needs VRAM headroom: pass `--vram-reserve-mib 2048`.** With nothing reserved, a
+   3-slot batch over a ~5000-token prompt fails at `verify: batch instantiate: out of memory`
+   (`cudaGraphInstantiate`, `verify.cpp:1803`). 2048 MiB reserved makes every slot identical.
+   Removing the 8 GiB conversation cache does not help — the cache-free config OOMs too (the expert
+   cache presumably grows into whatever VRAM is freed; that mechanism is inferred, not instrumented).
+10. **`parking_test` needs both exactness flags, `--pcie-frac 0` *and* `--adapt-every 1000000`.**
+    With adaptation left on, the live and parked follow-ups diverge (token 10 in one run, 16 in
+    another — adaptation perturbs the numerics nondeterministically); with both flags they are
+    identical — the same pair `batch_test` needs (§5.5).
+
+One harness quirk: `parking_test.py:55` reads the hardcoded `/tmp/batch_test_engine.log`, while the
+engine writes its log to `$TMPDIR` (`batch_test.py:49`). Under `nix develop` (where `$TMPDIR` is a
+per-shell directory) set `BATCH_TEST_LOG=/tmp/batch_test_engine.log` or the script raises
+`FileNotFoundError`.
