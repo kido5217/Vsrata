@@ -152,7 +152,17 @@ class ServeExec(unittest.TestCase):
 
 
 class ProvisionNoOp(unittest.TestCase):
-    """The fixture tree is already provisioned: a run must skip every stage and touch no tool."""
+    """The fixture tree is already provisioned: a run must skip every stage and touch no tool.
+
+    These tests point the CLI at this checkout's fixture tree, so they only mean anything where one
+    exists — without the guard below, a missing `pack/q2_0` sends provision off to download the
+    model for real."""
+
+    FIXTURE = ROOT / "pack" / "q2_0" / "native_experts.txt"
+
+    def setUp(self):
+        if not self.FIXTURE.exists():
+            self.skipTest(f"no provisioned fixtures under {ROOT/'pack'/'q2_0'} (see docs/research/fixtures-models.md)")
 
     def _config(self, d: str) -> Path:
         cfg = Path(d) / "profile-01.json"

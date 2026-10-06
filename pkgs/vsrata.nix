@@ -77,6 +77,9 @@ pkgs.stdenv.mkDerivation {
     for d in serve tools data cli ref; do
       cp -r "$d" $out/share/vsrata/
     done
+    # The tests are not part of the installed tool set (and keeping them out means editing one does
+    # not invalidate a built package).
+    find $out/share/vsrata/serve $out/share/vsrata/tools -maxdepth 1 -name 'test_*.py' -delete
     install -m644 setup.py $out/share/vsrata/setup.py
 
     # tools/_paths.py looks for llama.cpp's gguf-py first at <root>/third_party/llama.cpp/gguf-py,
