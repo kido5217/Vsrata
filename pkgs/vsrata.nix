@@ -28,7 +28,7 @@ pkgs.stdenv.mkDerivation {
   pname = "vsrata";
   inherit version src;
 
-  nativeBuildInputs = [ pkgs.cmake pkgs.ninja pkgs.makeWrapper ];
+  nativeBuildInputs = [ pkgs.cmake pkgs.ninja pkgs.makeWrapper pkgs.patchelf ];
   buildInputs = [ cuda python ];
 
   # CMake's CUDA compiler-ID probe needs the merged toolkit's include dir (research #10 §3).
@@ -99,6 +99,18 @@ pkgs.stdenv.mkDerivation {
       --set-default PYTHONUNBUFFERED 1
 
     runHook postInstall
+  '';
+
+  # Both cmake projects link CUDA, and llama.cpp's (the encoder) leaves the CUDA *stubs*
+  # directory on the binary's RUNPATH. A runtime binary must not search it: it shadows the
+  # installed driver, and ggml then reports "CUDA driver is a stub library". Drop the entry
+  # and put the real driver directory first so libcuda resolves to the driver (NixOS:
+  # /run/opengl-driver/lib, via addDriverRunpath's driverLink).
+  postFixup = ''
+    for b in strata strata-vision; do
+      rp=$(patchelf --print-rpath "$out/bin/$b" | tr ':' '\n' | grep -v '^$' | grep -v '/stubs$' | paste -sd: -)
+      patchelf --set-rpath "${pkgs.addDriverRunpath.driverLink}/lib''${rp:+:$rp}" "$out/bin/$b"
+    done
   '';
 
   # The engine is not useful to a build consumer, but the data dir is where the module points

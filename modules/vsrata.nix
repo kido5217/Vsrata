@@ -42,7 +42,9 @@ let
       # --ple-gguf wants the shard holding the PLE table: shard 2, or shard 1 for Swift (research #25).
       pleShard  = entry.pleShard or (if entry.family == "swift" then 1 else 2);
       plePath   = "${modelsDir}/${shardName file p.quant pleShard}";
-      mmprojPath = "${modelsDir}/${entry.mmproj.file}";
+      # The mmproj is family-shared: provision writes it to <dataRoot>/models/<file>
+      # (cli/vsrata.py, setup.py), not into the profile's own dir, so read it from there.
+      mmprojPath = "${cfg.modelDir}/models/${entry.mmproj.file}";
       # The registry writes `profile = null` for every family but coder, and `x or default` does not
       # fire on a null value — hence the explicit test.
       profileFile = if entry.profile != null then entry.profile else "expert-profile.bin";
